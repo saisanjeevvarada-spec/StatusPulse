@@ -1,0 +1,11 @@
+{
+  "include": [
+    "."
+  ],
+  "extraPaths": [
+    "./.venv/Lib/site-packages",
+    "c:/Users/SAI SANJEEV VARADA/OneDrive/Desktop/devops monitoring/.venv/Lib/site-packages"
+  ],
+  "venvPath": "c:/Users/SAI SANJEEV VARADA/OneDrive/Desktop/devops monitoring",
+  "venv": ".venv"
+}

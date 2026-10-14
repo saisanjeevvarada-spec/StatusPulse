@@ -1,0 +1,83 @@
+name: StatusPulse CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+# Minimal permissions follow the principle of least privilege
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Run Unit Tests & Code Checks
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - name: Checkout Repository
+        # actions/checkout@v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Set up Python ${{ matrix.python-version }}
+        # actions/setup-python@v5.3.0
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Test Suite with Pytest
+        run: |
+          pytest -v --tb=short
+
+  docker-build:
+    name: Verify Docker Container Build & Healthcheck
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        # actions/checkout@v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Set up Docker Buildx
+        # docker/setup-buildx-action@v3.7.1
+        uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349
+
+      - name: Build Docker Image
+        run: |
+          docker build -t statuspulse:ci .
+
+      - name: Test Container Startup & Healthcheck
+        run: |
+          # Start container in detached mode with persistent volume dir
+          mkdir -p $(pwd)/data
+          docker run -d \
+            --name statuspulse-test \
+            -p 5000:5000 \
+            -v $(pwd)/data:/app/data \
+            statuspulse:ci
+
+          # Give app container time to initialize
+          sleep 8
+
+          # Verify container responds to liveness healthcheck probe
+          curl --fail --retry 5 --retry-all-errors --retry-delay 3 -s http://localhost:5000/healthz
+
+          # Print container logs for debugging
+          docker logs statuspulse-test
+
+          # Cleanup
+          docker stop statuspulse-test
+          docker rm statuspulse-test
